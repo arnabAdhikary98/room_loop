@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
+import Image from "next/image";
 import Providers from "./providers";
 import "./globals.css";
 
@@ -64,9 +65,15 @@ export default async function RootLayout({
                     </Link>
                     <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
                       {session.user.image ? (
-                        <img src={session.user.image} alt="User avatar" />
+                        <Image 
+                          src={session.user.image} 
+                          alt="User avatar" 
+                          width={32} 
+                          height={32}
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
-                        <span className="text-sm font-semibold">{session.user.name?.charAt(0) || '?'}</span>
+                        <span className="text-sm font-semibold">{session.user.name?.charAt(0) || &apos;?&apos;}</span>
                       )}
                     </div>
                   </div>

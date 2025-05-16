@@ -15,7 +15,7 @@ export default function CreateRoom() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { status } = useSession();
 
   // Redirect if not authenticated (moved to useEffect)
   useEffect(() => {
@@ -82,8 +82,8 @@ export default function CreateRoom() {
       
       // Redirect to room page
       router.push(`/rooms/${data._id}`);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: Error | unknown) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
       setLoading(false);
     }
