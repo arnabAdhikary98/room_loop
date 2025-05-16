@@ -124,7 +124,7 @@ export default function CreateRoom() {
             value={formData.title}
             onChange={handleChange}
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-900 dark:text-white"
-            placeholder="What's the topic of your room?"
+            placeholder="What&apos;s the topic of your room?"
             required
           />
         </div>

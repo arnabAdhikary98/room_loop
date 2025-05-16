@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 
 interface Room {
@@ -82,15 +83,15 @@ export default function RoomPage() {
         
         // Check if the current user is a participant
         if (session?.user?.id) {
-          setIsJoined(data.participants.some((p: any) => p._id === session.user.id));
+          setIsJoined(data.participants.some((p: {_id: string}) => p._id === session.user.id));
         }
         
         // If room is live, fetch messages
         if (data.status === 'live') {
           fetchMessages();
         }
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: Error | unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch room');
       } finally {
         setLoading(false);
       }
@@ -140,8 +141,8 @@ export default function RoomPage() {
           fetchMessages();
         }
       }
-    } catch (err) {
-      console.error('Error fetching room status:', err);
+    } catch (err: Error | unknown) {
+      console.error('Error fetching room status:', err instanceof Error ? err.message : 'Unknown error');
     }
   };
 
@@ -155,8 +156,8 @@ export default function RoomPage() {
       
       const data = await response.json();
       setMessages(data);
-    } catch (err) {
-      console.error('Error fetching messages:', err);
+    } catch (err: Error | unknown) {
+      console.error('Error fetching messages:', err instanceof Error ? err.message : 'Unknown error');
     }
   };
 
@@ -184,8 +185,8 @@ export default function RoomPage() {
       const roomResponse = await fetch(`/api/rooms/${roomId}`);
       const roomData = await roomResponse.json();
       setRoom(roomData);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: Error | unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to join room');
     } finally {
       setJoinLoading(false);
     }
@@ -222,8 +223,8 @@ export default function RoomPage() {
       
       // Clear input
       setNewMessage('');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: Error | unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
       setMessageLoading(false);
     }
@@ -251,8 +252,8 @@ export default function RoomPage() {
       
       // Add new message to the list
       setMessages(prev => [...prev, data]);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: Error | unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to send emoji');
     }
   };
 
@@ -316,7 +317,13 @@ export default function RoomPage() {
               <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                 <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden mr-2">
                   {room.creator.image ? (
-                    <img src={room.creator.image} alt={room.creator.name} className="w-full h-full object-cover" />
+                    <Image 
+                      src={room.creator.image} 
+                      alt={room.creator.name} 
+                      width={24} 
+                      height={24}
+                      className="w-full h-full object-cover" 
+                    />
                   ) : (
                     <span className="text-xs font-semibold">{room.creator.name.charAt(0)}</span>
                   )}
@@ -392,7 +399,13 @@ export default function RoomPage() {
               >
                 <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center overflow-hidden">
                   {participant.image ? (
-                    <img src={participant.image} alt={participant.name} className="w-full h-full object-cover" />
+                    <Image 
+                      src={participant.image} 
+                      alt={participant.name} 
+                      width={24} 
+                      height={24}
+                      className="w-full h-full object-cover" 
+                    />
                   ) : (
                     <span className="text-xs font-semibold">{participant.name.charAt(0)}</span>
                   )}
@@ -441,7 +454,13 @@ export default function RoomPage() {
                         <div className="flex items-center gap-2 mb-1">
                           <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center overflow-hidden">
                             {message.sender.image ? (
-                              <img src={message.sender.image} alt={message.sender.name} className="w-full h-full object-cover" />
+                              <Image 
+                                src={message.sender.image} 
+                                alt={message.sender.name} 
+                                width={20} 
+                                height={20}
+                                className="w-full h-full object-cover" 
+                              />
                             ) : (
                               <span className="text-xs font-semibold">{message.sender.name.charAt(0)}</span>
                             )}
@@ -500,7 +519,7 @@ export default function RoomPage() {
         <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 px-6 py-8 rounded-lg text-center">
           <h2 className="text-xl font-semibold mb-2">This room is scheduled to start soon</h2>
           <p className="mb-4">The chat will be available once the room goes live at {formatDate(room.startTime)}</p>
-          <p className="text-sm">You'll be notified when the room starts</p>
+          <p className="text-sm">You&apos;ll be notified when the room starts</p>
         </div>
       ) : room.status === 'closed' ? (
         <div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 px-6 py-8 rounded-lg text-center">
