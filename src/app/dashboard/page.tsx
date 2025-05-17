@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface Room {
   _id: string;
@@ -12,7 +13,12 @@ interface Room {
   startTime: string;
   endTime: string;
   status: 'scheduled' | 'live' | 'closed';
-  participants: any[];
+  participants: {
+    _id: string;
+    name: string;
+    email: string;
+    image?: string;
+  }[];
   tags: string[];
 }
 
@@ -58,8 +64,8 @@ export default function Dashboard() {
         
         const participatedData = await participatedResponse.json();
         setParticipatedRooms(participatedData);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch rooms');
       } finally {
         setLoading(false);
       }
@@ -104,7 +110,13 @@ export default function Dashboard() {
           <div className="flex items-center">
             <div className="w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden mr-4">
               {session.user.image ? (
-                <img src={session.user.image} alt={session.user.name || ''} className="w-full h-full object-cover" />
+                <Image 
+                  src={session.user.image} 
+                  alt={session.user.name || ''} 
+                  width={64} 
+                  height={64}
+                  className="w-full h-full object-cover" 
+                />
               ) : (
                 <span className="text-2xl font-semibold">{session.user.name?.charAt(0) || '?'}</span>
               )}
@@ -112,6 +124,7 @@ export default function Dashboard() {
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{session.user.name}</h2>
               <p className="text-gray-500 dark:text-gray-400">{session.user.email}</p>
+              <p className="text-gray-500 dark:text-gray-400">ID: {session.user.id}</p>
             </div>
           </div>
         </div>

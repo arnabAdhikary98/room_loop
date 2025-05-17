@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 interface Room {
@@ -15,7 +16,12 @@ interface Room {
     email: string;
     image?: string;
   };
-  participants: any[];
+  participants: {
+    _id: string;
+    name: string;
+    email: string;
+    image?: string;
+  }[];
   tags: string[];
   status: 'scheduled' | 'live' | 'closed';
 }
@@ -48,8 +54,8 @@ export default function RoomsPage() {
         
         const data = await response.json();
         setRooms(data);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: Error | unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch rooms');
       } finally {
         setLoading(false);
       }
@@ -205,7 +211,13 @@ export default function RoomsPage() {
                 <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                   <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden mr-2">
                     {room.creator.image ? (
-                      <img src={room.creator.image} alt={room.creator.name} className="w-full h-full object-cover" />
+                      <Image 
+                        src={room.creator.image} 
+                        alt={room.creator.name} 
+                        width={24} 
+                        height={24}
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       <span className="text-xs font-semibold">{room.creator.name.charAt(0)}</span>
                     )}

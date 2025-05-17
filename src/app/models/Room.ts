@@ -9,6 +9,7 @@ export interface IRoom {
   participants: mongoose.Types.ObjectId[];
   tags: string[];
   status: 'scheduled' | 'live' | 'closed';
+  isOpen: boolean; // Whether anyone can join or only invitees
 }
 
 const RoomSchema = new mongoose.Schema<IRoom>({
@@ -47,33 +48,46 @@ const RoomSchema = new mongoose.Schema<IRoom>({
     enum: ['scheduled', 'live', 'closed'],
     default: 'scheduled',
   },
+  isOpen: {
+    type: Boolean,
+    default: true, // Default to open rooms that anyone can join
+  }
 }, {
   timestamps: true,
 });
 
 // Automatically update status based on current time and start/end times
-RoomSchema.pre('find', function (next) {
-  this.updateMany(
-    {
-      status: 'scheduled',
-      startTime: { $lte: new Date() },
-    },
-    {
-      status: 'live',
-    }
-  ).exec();
+RoomSchema.pre('find', async function (next) {
+  try {
+    const Room = mongoose.model('Room');
+    
+    // Update scheduled rooms to live
+    await Room.updateMany(
+      {
+        status: 'scheduled',
+        startTime: { $lte: new Date() },
+      },
+      {
+        status: 'live',
+      }
+    ).clone(); // Use clone() to avoid "Query was already executed" errors
 
-  this.updateMany(
-    {
-      status: 'live',
-      endTime: { $lte: new Date() },
-    },
-    {
-      status: 'closed',
-    }
-  ).exec();
+    // Update live rooms to closed
+    await Room.updateMany(
+      {
+        status: 'live',
+        endTime: { $lte: new Date() },
+      },
+      {
+        status: 'closed',
+      }
+    ).clone(); // Use clone() to avoid "Query was already executed" errors
 
-  next();
+    next();
+  } catch (error) {
+    console.error('Error in Room pre-find hook:', error);
+    next();
+  }
 });
 
 export default mongoose.models.Room || mongoose.model<IRoom>('Room', RoomSchema); 

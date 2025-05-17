@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { TagsInput } from 'react-tag-input-component';
 
 export default function CreateRoom() {
   const [formData, setFormData] = useState({
@@ -10,12 +11,13 @@ export default function CreateRoom() {
     description: '',
     startTime: '',
     endTime: '',
-    tags: '',
+    tags: [] as string[],
+    isOpen: true,
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { status } = useSession();
 
   // Redirect if not authenticated (moved to useEffect)
   useEffect(() => {
@@ -24,9 +26,19 @@ export default function CreateRoom() {
     }
   }, [status, router]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target as HTMLInputElement;
+    
+    if (type === 'checkbox') {
+      const { checked } = e.target as HTMLInputElement;
+      setFormData(prev => ({ ...prev, [name]: checked }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleTagsChange = (newTags: string[]) => {
+    setFormData(prev => ({ ...prev, tags: newTags }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -55,11 +67,6 @@ export default function CreateRoom() {
     try {
       setLoading(true);
       
-      // Convert tags string to array
-      const tagsArray = formData.tags
-        ? formData.tags.split(',').map(tag => tag.trim())
-        : [];
-      
       const response = await fetch('/api/rooms', {
         method: 'POST',
         headers: {
@@ -70,7 +77,8 @@ export default function CreateRoom() {
           description: formData.description,
           startTime: startDate.toISOString(),
           endTime: endDate.toISOString(),
-          tags: tagsArray,
+          tags: formData.tags,
+          isOpen: formData.isOpen,
         }),
       });
       
@@ -83,7 +91,8 @@ export default function CreateRoom() {
       // Redirect to room page
       router.push(`/rooms/${data._id}`);
     } catch (err: any) {
-      setError(err.message);
+      console.error('Error creating room:', err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
       setLoading(false);
     }
@@ -92,7 +101,7 @@ export default function CreateRoom() {
   if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
@@ -179,25 +188,78 @@ export default function CreateRoom() {
         
         <div className="mb-6">
           <label htmlFor="tags" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Tags (comma separated)
+            Tags
           </label>
-          <input
-            type="text"
-            id="tags"
-            name="tags"
-            value={formData.tags}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-900 dark:text-white"
-            placeholder="tech, design, marketing"
-          />
+          <div className="tags-input-container">
+            <input
+              type="text"
+              id="tags"
+              name="tags"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-900 dark:text-white"
+              placeholder="Type a tag and press Enter"
+              value={formData.tags.join(', ')}
+              onChange={(e) => {
+                const tagArray = e.target.value.split(',').map(tag => tag.trim()).filter(Boolean);
+                setFormData(prev => ({ ...prev, tags: tagArray }));
+              }}
+            />
+            <div className="mt-2 flex flex-wrap gap-2">
+              {formData.tags.map((tag, index) => (
+                <span 
+                  key={index} 
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                >
+                  {tag}
+                  <button 
+                    type="button"
+                    className="ml-1.5 inline-flex text-blue-400 hover:text-blue-600 dark:text-blue-300 dark:hover:text-blue-100"
+                    onClick={() => {
+                      const newTags = [...formData.tags];
+                      newTags.splice(index, 1);
+                      setFormData(prev => ({ ...prev, tags: newTags }));
+                    }}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        <div className="mb-6">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="isOpen"
+              name="isOpen"
+              checked={formData.isOpen}
+              onChange={handleChange}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="isOpen" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+              Open Room (Anyone can join)
+            </label>
+          </div>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {formData.isOpen 
+              ? "Anyone can join this room without an invitation." 
+              : "Only people you invite can join this room."}
+          </p>
         </div>
         
         <div className="flex justify-end">
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 flex items-center"
           >
+            {loading && (
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
             {loading ? 'Creating...' : 'Create Room'}
           </button>
         </div>
