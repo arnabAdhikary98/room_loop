@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function SignUp() {
+// Component that uses search params inside a suspense boundary
+function SignUpForm() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -222,5 +223,26 @@ export default function SignUp() {
         </form>
       </div>
     </div>
+  );
+}
+
+// Loading fallback for the suspense boundary
+function SignUpLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+        <p className="text-gray-600 dark:text-gray-400">Loading signup form...</p>
+      </div>
+    </div>
+  );
+}
+
+// Main component that uses Suspense for the useSearchParams hook
+export default function SignUp() {
+  return (
+    <Suspense fallback={<SignUpLoading />}>
+      <SignUpForm />
+    </Suspense>
   );
 } 

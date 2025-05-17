@@ -9,7 +9,7 @@ export async function GET(
   context: { params: { id: string } }
 ) {
   try {
-    const id = context.params.id;
+    const { id } = await context.params;
     const session = await getServerSession(authOptions);
     
     // Use controller to get room messages
@@ -26,7 +26,7 @@ export async function POST(
   context: { params: { id: string } }
 ) {
   try {
-    const id = context.params.id;
+    const { id } = await context.params;
     const body = await req.json();
     const session = await getServerSession(authOptions);
     

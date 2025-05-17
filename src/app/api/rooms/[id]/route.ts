@@ -9,7 +9,7 @@ export async function GET(
   context: { params: { id: string } }
 ) {
   try {
-    const id = context.params.id;
+    const { id } = await context.params;
     
     // Use controller to get room
     return roomController.getRoomById(id);
@@ -25,7 +25,7 @@ export async function PUT(
   context: { params: { id: string } }
 ) {
   try {
-    const id = context.params.id;
+    const { id } = await context.params;
     const session = await getServerSession(authOptions);
     const body = await req.json();
     
@@ -43,7 +43,7 @@ export async function DELETE(
   context: { params: { id: string } }
 ) {
   try {
-    const id = context.params.id;
+    const { id } = await context.params;
     const session = await getServerSession(authOptions);
     
     // Use controller to delete room

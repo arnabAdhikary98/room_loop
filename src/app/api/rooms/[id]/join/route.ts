@@ -19,8 +19,11 @@ export async function POST(
     
     await dbConnect();
     
+    // Get room id from params
+    const { id: roomId } = await params;
+    
     // Get room
-    const room = await Room.findById(params.id);
+    const room = await Room.findById(roomId);
     
     if (!room) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
@@ -43,7 +46,7 @@ export async function POST(
     // Add room to user's participated rooms
     await User.findByIdAndUpdate(
       session.user.id,
-      { $addToSet: { participatedRooms: params.id } }
+      { $addToSet: { participatedRooms: roomId } }
     );
     
     return NextResponse.json({ success: true });
