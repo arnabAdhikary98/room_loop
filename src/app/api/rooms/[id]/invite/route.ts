@@ -22,7 +22,7 @@ export async function POST(
       );
     }
     
-    const roomId = params.id;
+    const { id: roomId } = await params;
     const { email } = await req.json();
     
     if (!email) {

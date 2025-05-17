@@ -20,7 +20,7 @@ export async function PUT(
     }
     
     const userId = session.user.id;
-    const notificationId = params.id;
+    const { id: notificationId } = await params;
     
     await dbConnect();
     

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -26,7 +26,8 @@ interface Room {
   status: 'scheduled' | 'live' | 'closed';
 }
 
-export default function RoomsPage() {
+// Component that uses search params inside Suspense boundary
+function RoomsContent() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -247,5 +248,26 @@ export default function RoomsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Loading fallback for the suspense boundary
+function RoomsLoading() {
+  return (
+    <div className="max-w-7xl mx-auto p-6">
+      <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">Browse Rooms</h1>
+      <div className="flex justify-center items-center py-24">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    </div>
+  );
+}
+
+// Main component that uses Suspense for the useSearchParams hook
+export default function RoomsPage() {
+  return (
+    <Suspense fallback={<RoomsLoading />}>
+      <RoomsContent />
+    </Suspense>
   );
 } 
