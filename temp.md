@@ -14,13 +14,7 @@ We've fixed two main issues with the build:
    - src/app/api/rooms/[id]/invite/route.ts
    - src/app/api/messages/[id]/route.ts
 
-Example fix for dynamic params:
-```typescript
-// Before
-const id = context.params.id;
 
-// After
 const { id } = await context.params;
-```
 
 To build the application, you'll need to restart your dev server or rebuild with clean caches. 
