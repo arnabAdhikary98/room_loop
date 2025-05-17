@@ -64,7 +64,7 @@ export default function Dashboard() {
         
         const participatedData = await participatedResponse.json();
         setParticipatedRooms(participatedData);
-      } catch (err: Error | unknown) {
+      } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch rooms');
       } finally {
         setLoading(false);
@@ -118,12 +118,13 @@ export default function Dashboard() {
                   className="w-full h-full object-cover" 
                 />
               ) : (
-                <span className="text-2xl font-semibold">{session.user.name?.charAt(0) || &apos;?&apos;}</span>
+                <span className="text-2xl font-semibold">{session.user.name?.charAt(0) || '?'}</span>
               )}
             </div>
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{session.user.name}</h2>
               <p className="text-gray-500 dark:text-gray-400">{session.user.email}</p>
+              <p className="text-gray-500 dark:text-gray-400">ID: {session.user.id}</p>
             </div>
           </div>
         </div>

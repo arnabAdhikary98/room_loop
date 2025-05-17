@@ -1,15 +1,14 @@
-import type { Metadata } from "next";
-import { Geist } from "next/font/google";
-import Providers from "./providers";
-import "./globals.css";
+import './globals.css';
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import Providers from './providers';
+import Navigation from "@/components/Navigation";
 
-const geist = Geist({
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "RoomLoop App",
-  description: "Micro-meetup application",
+  title: 'RoomLoop - Virtual Rooms for Real Conversations',
+  description: 'Join or create virtual rooms for scheduled discussions on any topic.',
 };
 
 export default function RootLayout({
@@ -19,9 +18,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={geist.className}>
+      <body className={`${inter.className} bg-gray-50 dark:bg-gray-900 min-h-screen`}>
         <Providers>
-          <main>
+          <Navigation />
+          <main className="pt-16">
             {children}
           </main>
         </Providers>

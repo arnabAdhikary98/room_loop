@@ -9,7 +9,7 @@ if (-not (Test-Path .env.local)) {
     @"
 # MongoDB Connection String
 # Replace with your actual MongoDB connection string
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/roomloop?retryWrites=true&w=majority
+MONGODB_URI=mongodb+srv://adhikaryarnab1998:AIeitaoLem2Qv1An@cluster0.tot0uwb.mongodb.net/roomloop?retryWrites=true&w=majority
 
 # NextAuth Configuration
 NEXTAUTH_URL=http://localhost:3000

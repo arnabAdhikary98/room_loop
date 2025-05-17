@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 export default function SignUp() {
@@ -13,7 +13,27 @@ export default function SignUp() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [inviteInfo, setInviteInfo] = useState<{
+    roomId: string;
+    invite: string;
+  } | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Check for invite params in the URL
+  useEffect(() => {
+    const email = searchParams.get('email');
+    const invite = searchParams.get('invite');
+    const roomId = searchParams.get('roomId');
+
+    if (email) {
+      setFormData(prev => ({ ...prev, email }));
+    }
+
+    if (invite && roomId) {
+      setInviteInfo({ roomId, invite });
+    }
+  }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -43,16 +63,27 @@ export default function SignUp() {
     try {
       setLoading(true);
       
+      // Base signup data
+      const signupData = {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+      };
+      
+      // If we have invite info, include it
+      if (inviteInfo) {
+        Object.assign(signupData, { 
+          inviteToken: inviteInfo.invite,
+          roomId: inviteInfo.roomId
+        });
+      }
+      
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-        }),
+        body: JSON.stringify(signupData),
       });
       
       const data = await response.json();
@@ -61,7 +92,28 @@ export default function SignUp() {
         throw new Error(data.error || 'Error creating account');
       }
       
-      // Redirect to sign in page
+      // If signed up with invite, redirect to the room page after sign in
+      if (inviteInfo) {
+        // Auto sign-in user
+        const signInResponse = await fetch('/api/auth/signin', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+          }),
+        });
+        
+        if (signInResponse.ok) {
+          // Redirect to the room they were invited to
+          router.push(`/rooms/${inviteInfo.roomId}`);
+          return;
+        }
+      }
+      
+      // Regular signup - redirect to sign in page
       router.push('/auth/signin');
     } catch (err: any) {
       setError(err.message);
@@ -77,12 +129,19 @@ export default function SignUp() {
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
             Create your account
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-            Or{' '}
-            <Link href="/auth/signin" className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">
-              sign in to your account
-            </Link>
-          </p>
+          
+          {inviteInfo ? (
+            <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+              You've been invited to join a room on RoomLoop
+            </p>
+          ) : (
+            <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+              Or{' '}
+              <Link href="/auth/signin" className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">
+                sign in to your account
+              </Link>
+            </p>
+          )}
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -118,6 +177,7 @@ export default function SignUp() {
                 placeholder="Email address"
                 value={formData.email}
                 onChange={handleChange}
+                readOnly={!!searchParams.get('email')}
               />
             </div>
             <div>
@@ -156,7 +216,7 @@ export default function SignUp() {
               disabled={loading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creating account...' : 'Sign Up'}
+              {loading ? 'Creating account...' : inviteInfo ? 'Sign Up & Join Room' : 'Sign Up'}
             </button>
           </div>
         </form>

@@ -1,58 +1,37 @@
-import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/app/lib/mongoose';
-import Room from '@/app/models/Room';
+import { NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { roomController } from '@/app/controllers/roomController';
 
 // GET /api/rooms - Get all rooms
 export async function GET(req: NextRequest) {
-  try {
-    await dbConnect();
-    
-    // Get query parameters
-    const url = new URL(req.url);
-    const status = url.searchParams.get('status');
-    const tag = url.searchParams.get('tag');
-    
-    // Build query object
-    const query: any = {};
-    if (status) query.status = status;
-    if (tag) query.tags = tag;
-    
-    // Find rooms with optional filters
-    const rooms = await Room.find(query)
-      .populate('creator', 'name email image')
-      .sort({ startTime: 1 });
-    
-    return NextResponse.json(rooms);
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch rooms' }, { status: 500 });
-  }
+  // Get query parameters
+  const url = new URL(req.url);
+  const status = url.searchParams.get('status');
+  const tag = url.searchParams.get('tag');
+  
+  // Build query object
+  const query: any = {};
+  if (status) query.status = status;
+  if (tag) query.tags = tag;
+  
+  // Use controller to get rooms
+  return roomController.getAllRooms(query);
 }
 
 // POST /api/rooms - Create a new room
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession();
-    
-    // Check authentication
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    await dbConnect();
+    // Get session
+    const session = await getServerSession(authOptions);
     
     // Get request body
     const body = await req.json();
     
-    // Create new room
-    const newRoom = await Room.create({
-      ...body,
-      creator: session.user.id,
-      participants: [session.user.id], // Creator is automatically a participant
-    });
-    
-    return NextResponse.json(newRoom, { status: 201 });
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to create room' }, { status: 500 });
+    // Use controller to create room
+    return roomController.createRoom(body, session);
+  } catch (error: any) {
+    console.error('Error in POST /api/rooms:', error);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 

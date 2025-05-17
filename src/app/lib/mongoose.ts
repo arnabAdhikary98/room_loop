@@ -1,7 +1,11 @@
 import mongoose from 'mongoose';
 
 // Use environment variable or fallback to local MongoDB instance for development
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/roomloop';
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  throw new Error('MONGODB_URI is not defined in the environment variables');
+}
 
 interface ConnectionCache {
   conn: typeof mongoose | null;
@@ -36,7 +40,8 @@ async function dbConnect() {
     };
 
     // Create new promise
-    global.mongooseCache.promise = mongoose
+    if (MONGODB_URI) {
+      global.mongooseCache.promise = mongoose
       .connect(MONGODB_URI, opts)
       .then((mongoose) => {
         console.log('MongoDB connected successfully');
@@ -46,6 +51,7 @@ async function dbConnect() {
         console.error('MongoDB connection error:', error);
         throw error;
       });
+    }
   }
   
   // Wait for the connection

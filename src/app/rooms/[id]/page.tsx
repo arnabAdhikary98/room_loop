@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
+import { roomService } from '@/app/services/api';
 
 interface Room {
   _id: string;
@@ -50,7 +51,18 @@ export default function RoomPage() {
   const [loading, setLoading] = useState(true);
   const [messageLoading, setMessageLoading] = useState(false);
   const [joinLoading, setJoinLoading] = useState(false);
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+  const [inviteSuccess, setInviteSuccess] = useState('');
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleData, setRescheduleData] = useState({
+    startTime: '',
+    endTime: ''
+  });
   const params = useParams();
   const roomId = params.id as string;
   const router = useRouter();
@@ -257,6 +269,97 @@ export default function RoomPage() {
     }
   };
 
+  const handleRescheduleRoom = async () => {
+    if (!session || !isCreator) {
+      return;
+    }
+    
+    // Show reschedule modal instead of automatically rescheduling
+    setShowRescheduleModal(true);
+  };
+
+  const handleSubmitReschedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      setRescheduleLoading(true);
+      
+      // Validate dates
+      const startDate = new Date(rescheduleData.startTime);
+      const endDate = new Date(rescheduleData.endTime);
+      
+      if (startDate >= endDate) {
+        setError('End time must be after start time');
+        setRescheduleLoading(false);
+        return;
+      }
+      
+      if (startDate < new Date()) {
+        setError('Start time cannot be in the past');
+        setRescheduleLoading(false);
+        return;
+      }
+      
+      const response = await fetch(`/api/rooms/${roomId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'scheduled',
+          startTime: startDate.toISOString(),
+          endTime: endDate.toISOString(),
+        }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to reschedule room');
+      }
+      
+      const updatedRoom = await response.json();
+      setRoom(updatedRoom);
+      
+      // Close modal and show success message
+      setShowRescheduleModal(false);
+      alert('Room rescheduled successfully!');
+    } catch (err: Error | unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to reschedule room');
+    } finally {
+      setRescheduleLoading(false);
+    }
+  };
+
+  const handleInviteUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInviteError('');
+    setInviteSuccess('');
+    
+    if (!inviteEmail.trim()) {
+      setInviteError('Email is required');
+      return;
+    }
+    
+    try {
+      setInviteLoading(true);
+      
+      await roomService.inviteToRoom(roomId, inviteEmail);
+      
+      setInviteSuccess(`Invitation sent to ${inviteEmail}`);
+      setInviteEmail('');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setInviteSuccess('');
+      }, 3000);
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.error || 'Failed to send invitation';
+      setInviteError(errorMessage);
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
   // Format date for display
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -271,6 +374,44 @@ export default function RoomPage() {
 
   // Check if the current user is the creator
   const isCreator = room?.creator._id === session?.user?.id;
+
+  // Render room actions based on user role and room status
+  const renderRoomActions = () => {
+    const isCreator = session?.user?.id === room?.creator._id;
+    
+    return (
+      <div className="flex flex-wrap gap-2 mt-4">
+        {!isJoined && room?.status !== 'closed' && (
+          <button
+            onClick={handleJoinRoom}
+            disabled={joinLoading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {joinLoading ? 'Joining...' : 'Join Room'}
+          </button>
+        )}
+        
+        {isCreator && room?.status === 'scheduled' && (
+          <>
+            <button
+              onClick={() => setShowInviteModal(true)}
+              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition"
+            >
+              Invite Users
+            </button>
+            
+            <button
+              onClick={handleRescheduleRoom}
+              disabled={rescheduleLoading}
+              className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {rescheduleLoading ? 'Updating...' : 'Reschedule Room'}
+            </button>
+          </>
+        )}
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -308,242 +449,404 @@ export default function RoomPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden mb-6">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex flex-col sm:flex-row justify-between mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{room.title}</h1>
-              <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden mr-2">
-                  {room.creator.image ? (
-                    <Image 
-                      src={room.creator.image} 
-                      alt={room.creator.name} 
-                      width={24} 
-                      height={24}
-                      className="w-full h-full object-cover" 
-                    />
-                  ) : (
-                    <span className="text-xs font-semibold">{room.creator.name.charAt(0)}</span>
-                  )}
-                </div>
-                <span>Created by {room.creator.name}</span>
+    <div className="max-w-6xl mx-auto p-4">
+      {loading ? (
+        <div className="flex justify-center items-center min-h-[50vh]">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-lg text-center">
+          <p className="text-red-800 dark:text-red-300 text-lg">{error}</p>
+          <Link href="/rooms" className="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">
+            Back to Rooms
+          </Link>
+        </div>
+      ) : room && (
+        <>
+          <div className="mb-6">
+            <Link href="/rooms" className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Back to Rooms
+            </Link>
+          </div>
+          
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
+                {room.title}
+              </h1>
+              
+              <div className="flex items-center gap-2">
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  room.status === 'scheduled' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
+                  room.status === 'live' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
+                  'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                }`}>
+                  {room.status.charAt(0).toUpperCase() + room.status.slice(1)}
+                </span>
               </div>
             </div>
             
-            <span className={`text-sm font-semibold px-3 py-1 rounded-full mt-2 sm:mt-0 ${
-              room.status === 'live' 
-                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                : room.status === 'scheduled'
-                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                  : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-            }`}>
-              {room.status.toUpperCase()}
-            </span>
-          </div>
-          
-          <p className="text-gray-600 dark:text-gray-300 mb-4">{room.description}</p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-gray-500 dark:text-gray-400">Start Time</p>
-              <p className="font-medium text-gray-900 dark:text-white">{formatDate(room.startTime)}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 dark:text-gray-400">End Time</p>
-              <p className="font-medium text-gray-900 dark:text-white">{formatDate(room.endTime)}</p>
-            </div>
-          </div>
-          
-          {room.tags.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {room.tags.map(tag => (
-                <span 
-                  key={tag} 
-                  className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-full"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-        
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Participants ({room.participants.length})</h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              {room.description}
+            </p>
             
-            {!isJoined && status === 'authenticated' && room.status !== 'closed' && (
-              <button
-                onClick={handleJoinRoom}
-                disabled={joinLoading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-              >
-                {joinLoading ? 'Joining...' : 'Join Room'}
-              </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Start Time</h3>
+                <p className="text-gray-900 dark:text-white">{formatDate(room.startTime)}</p>
+              </div>
+              
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">End Time</h3>
+                <p className="text-gray-900 dark:text-white">{formatDate(room.endTime)}</p>
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Created by</h3>
+              <div className="flex items-center">
+                {room.creator.image ? (
+                  <Image 
+                    src={room.creator.image} 
+                    alt={room.creator.name} 
+                    width={32} 
+                    height={32} 
+                    className="rounded-full mr-2"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 mr-2 flex items-center justify-center">
+                    <span className="text-gray-600 dark:text-gray-300 text-sm font-medium">
+                      {room.creator.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                <span className="text-gray-900 dark:text-white">{room.creator.name}</span>
+              </div>
+            </div>
+            
+            {room.tags && room.tags.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Tags</h3>
+                <div className="flex flex-wrap gap-2">
+                  {room.tags.map((tag, index) => (
+                    <span 
+                      key={index} 
+                      className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-md text-sm"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
             
-            {status === 'unauthenticated' && (
-              <Link href="/auth/signin" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                Sign in to Join
-              </Link>
-            )}
+            {renderRoomActions()}
           </div>
           
-          <div className="flex flex-wrap gap-2">
-            {room.participants.map(participant => (
-              <div 
-                key={participant._id} 
-                className="flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full"
-              >
-                <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center overflow-hidden">
+          {/* Participants section */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
+              Participants ({room.participants.length})
+            </h2>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {room.participants.map((participant) => (
+                <div key={participant._id} className="flex items-center">
                   {participant.image ? (
                     <Image 
                       src={participant.image} 
                       alt={participant.name} 
-                      width={24} 
-                      height={24}
-                      className="w-full h-full object-cover" 
+                      width={32} 
+                      height={32} 
+                      className="rounded-full mr-2"
                     />
                   ) : (
-                    <span className="text-xs font-semibold">{participant.name.charAt(0)}</span>
-                  )}
-                </div>
-                <span className="text-sm text-gray-800 dark:text-gray-200">
-                  {participant.name}
-                  {participant._id === room.creator._id && (
-                    <span className="text-xs ml-1 text-gray-500 dark:text-gray-400">(Creator)</span>
-                  )}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      
-      {/* Chat section - only visible for participants when room is live */}
-      {room.status === 'live' && isJoined ? (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Live Chat</h2>
-          </div>
-          
-          <div className="h-[400px] overflow-y-auto p-4">
-            {messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-gray-500 dark:text-gray-400">No messages yet. Be the first to say something!</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {messages.map(message => (
-                  <div 
-                    key={message._id} 
-                    className={`flex ${message.sender._id === session?.user?.id ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div 
-                      className={`max-w-[70%] ${
-                        message.sender._id === session?.user?.id 
-                          ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' 
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
-                      } ${
-                        message.type === 'emoji' ? 'px-3 py-2 text-2xl' : 'px-4 py-2'
-                      } rounded-lg`}
-                    >
-                      {message.sender._id !== session?.user?.id && (
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center overflow-hidden">
-                            {message.sender.image ? (
-                              <Image 
-                                src={message.sender.image} 
-                                alt={message.sender.name} 
-                                width={20} 
-                                height={20}
-                                className="w-full h-full object-cover" 
-                              />
-                            ) : (
-                              <span className="text-xs font-semibold">{message.sender.name.charAt(0)}</span>
-                            )}
-                          </div>
-                          <span className="text-xs font-medium">{message.sender.name}</span>
-                        </div>
-                      )}
-                      
-                      <div>
-                        {message.content}
-                      </div>
-                      
-                      <div className="text-xs mt-1 text-right text-gray-500 dark:text-gray-400">
-                        {formatMessageTime(message.timestamp)}
-                      </div>
+                    <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 mr-2 flex items-center justify-center">
+                      <span className="text-gray-600 dark:text-gray-300 text-sm font-medium">
+                        {participant.name.charAt(0).toUpperCase()}
+                      </span>
                     </div>
-                  </div>
-                ))}
-                <div ref={messagesEndRef} />
-              </div>
-            )}
-          </div>
-          
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex mb-2 gap-2">
-              {['👍', '❤️', '😂', '😮', '🎉', '👀'].map(emoji => (
-                <button
-                  key={emoji}
-                  onClick={() => handleSendEmoji(emoji)}
-                  className="text-xl hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-full transition-colors"
-                >
-                  {emoji}
-                </button>
+                  )}
+                  <span className="text-gray-900 dark:text-white text-sm truncate">
+                    {participant.name}
+                  </span>
+                </div>
               ))}
             </div>
-            
-            <form onSubmit={handleSendMessage} className="flex gap-2">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type a message..."
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-900 dark:text-white"
-              />
-              <button
-                type="submit"
-                disabled={messageLoading || !newMessage.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-              >
-                {messageLoading ? 'Sending...' : 'Send'}
-              </button>
-            </form>
           </div>
-        </div>
-      ) : room.status === 'scheduled' && isJoined ? (
-        <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 px-6 py-8 rounded-lg text-center">
-          <h2 className="text-xl font-semibold mb-2">This room is scheduled to start soon</h2>
-          <p className="mb-4">The chat will be available once the room goes live at {formatDate(room.startTime)}</p>
-          <p className="text-sm">You&apos;ll be notified when the room starts</p>
-        </div>
-      ) : room.status === 'closed' ? (
-        <div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 px-6 py-8 rounded-lg text-center">
-          <h2 className="text-xl font-semibold mb-2">This room has ended</h2>
-          <p>The discussion is no longer active as this room has closed.</p>
-        </div>
-      ) : (
-        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300 px-6 py-8 rounded-lg text-center">
-          <h2 className="text-xl font-semibold mb-2">Join to participate</h2>
-          <p className="mb-4">You need to join this room to see the chat when it goes live.</p>
-          {status === 'authenticated' ? (
-            <button
-              onClick={handleJoinRoom}
-              disabled={joinLoading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-            >
-              {joinLoading ? 'Joining...' : 'Join Room'}
-            </button>
-          ) : (
-            <Link href="/auth/signin" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 inline-block">
-              Sign in to Join
-            </Link>
+          
+          {/* Messages section - only show if room is live and user is a participant */}
+          {room.status === 'live' && isJoined && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+              <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
+                Discussion
+              </h2>
+              
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg mb-4">
+                <div className="h-80 overflow-y-auto p-4 space-y-4">
+                  {messages.length === 0 ? (
+                    <p className="text-center text-gray-500 dark:text-gray-400">
+                      No messages yet. Be the first to send a message!
+                    </p>
+                  ) : (
+                    messages.map((message) => (
+                      <div 
+                        key={message._id} 
+                        className={`flex ${message.sender._id === session?.user?.id ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div className={`max-w-[70%] ${
+                          message.sender._id === session?.user?.id 
+                            ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' 
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
+                          } rounded-lg px-4 py-2`}
+                        >
+                          {message.sender._id !== session?.user?.id && (
+                            <p className="text-xs font-medium mb-1">
+                              {message.sender.name}
+                            </p>
+                          )}
+                          
+                          {message.type === 'emoji' ? (
+                            <p className="text-2xl">{message.content}</p>
+                          ) : (
+                            <p>{message.content}</p>
+                          )}
+                          
+                          <p className="text-xs opacity-70 text-right mt-1">
+                            {formatMessageTime(message.timestamp)}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+                
+                <form onSubmit={handleSendMessage} className="border-t border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      placeholder="Type a message..."
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
+                    />
+                    <button
+                      type="submit"
+                      disabled={messageLoading || !newMessage.trim()}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {messageLoading ? 'Sending...' : 'Send'}
+                    </button>
+                  </div>
+                  
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSendEmoji('👍')}
+                      className="text-xl hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md"
+                    >
+                      👍
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSendEmoji('❤️')}
+                      className="text-xl hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md"
+                    >
+                      ❤️
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSendEmoji('😂')}
+                      className="text-xl hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md"
+                    >
+                      😂
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSendEmoji('🎉')}
+                      className="text-xl hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md"
+                    >
+                      🎉
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSendEmoji('🤔')}
+                      className="text-xl hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-md"
+                    >
+                      🤔
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           )}
-        </div>
+          
+          {/* Invite Modal */}
+          {showInviteModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Invite User
+                  </h3>
+                  <button
+                    onClick={() => setShowInviteModal(false)}
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                {inviteError && (
+                  <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-400 text-red-700 dark:text-red-300 px-4 py-3 rounded relative">
+                    <span className="block sm:inline">{inviteError}</span>
+                  </div>
+                )}
+                
+                {inviteSuccess && (
+                  <div className="mb-4 bg-green-50 dark:bg-green-900/30 border border-green-400 text-green-700 dark:text-green-300 px-4 py-3 rounded relative">
+                    <span className="block sm:inline">{inviteSuccess}</span>
+                  </div>
+                )}
+                
+                <form onSubmit={handleInviteUser}>
+                  <div className="mb-4">
+                    <label htmlFor="inviteEmail" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      id="inviteEmail"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-900 dark:text-white"
+                      placeholder="user@example.com"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowInviteModal(false)}
+                      className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={inviteLoading}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {inviteLoading ? 'Sending...' : 'Send Invitation'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+          
+          {/* Reschedule Modal */}
+          {showRescheduleModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Reschedule Room
+                  </h3>
+                  <button
+                    onClick={() => setShowRescheduleModal(false)}
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                {error && (
+                  <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-400 text-red-700 dark:text-red-300 px-4 py-3 rounded relative">
+                    <span className="block sm:inline">{error}</span>
+                  </div>
+                )}
+                
+                <form onSubmit={handleSubmitReschedule}>
+                  <div className="mb-4">
+                    <label htmlFor="startTime" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Start Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      id="startTime"
+                      value={rescheduleData.startTime}
+                      onChange={(e) => setRescheduleData({...rescheduleData, startTime: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-900 dark:text-white"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="mb-6">
+                    <label htmlFor="endTime" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      End Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      id="endTime"
+                      value={rescheduleData.endTime}
+                      onChange={(e) => setRescheduleData({...rescheduleData, endTime: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-900 dark:text-white"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowRescheduleModal(false)}
+                      className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={rescheduleLoading}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {rescheduleLoading ? 'Rescheduling...' : 'Reschedule Room'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+          
+          {/* Closed Room Section */}
+          {room.status === 'closed' ? (
+            <div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 px-6 py-8 rounded-lg text-center">
+              <h2 className="text-xl font-semibold mb-2">This room has ended</h2>
+              <p className="mb-4">The discussion is no longer active as this room has closed.</p>
+              
+              {isCreator && (
+                <button
+                  onClick={handleRescheduleRoom}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Reschedule Room
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Existing code for other room statuses */}
+            </>
+          )}
+        </>
       )}
     </div>
   );

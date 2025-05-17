@@ -1,8 +1,12 @@
 import { MongoClient } from 'mongodb';
 
 // Use environment variable or fallback to local MongoDB instance for development
-const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/roomloop';
+const uri = process.env.MONGODB_URI;
 const options = {};
+
+if (!uri) {
+  throw new Error('MONGODB_URI is not defined in the environment variables');
+}
 
 // Global is used here to maintain a cached connection across hot reloads
 // in development. This prevents multiple connections when API routes are called.
